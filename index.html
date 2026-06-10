@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battle Pass Banner Animation Debug</title>
+
+  <style>
+    :root {
+      --page-bg: #101010;
+      --panel-bg: #1a1a1a;
+      --panel-border: #333;
+
+      --banner-bg: #000;
+      --banner-accent: #f1c400;
+      --banner-text: #fff;
+
+      --banner-width: 926px;
+
+      --nudge-distance: 22px;
+      --nudge-duration: 1050ms;
+      --second-hit-power: 0.5;
+
+      --shine-duration: 950ms;
+      --shine-opacity: 0.85;
+      --shine-width: 46%;
+      --reverse-shine-power: 0.5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(255,255,255,0.05), transparent 34%),
+        #101010;
+      color: white;
+      font-family: Arial, Helvetica, sans-serif;
+      padding: 24px;
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .stage {
+      min-height: 80vh;
+      display: grid;
+      place-items: center;
+      border: 1px solid #242424;
+      border-radius: 18px;
+      background: #0d0d0d;
+      overflow: hidden;
+      padding: 32px;
+    }
+
+    .banner-wrap {
+      width: min(100%, var(--banner-width));
+      will-change: transform;
+      transform-origin: center center;
+    }
+
+    .banner-wrap.nudge {
+      animation: doubleNudge var(--nudge-duration) linear both;
+    }
+
+    /*
+      Up/down only.
+      First bounce = 100% power.
+      Second bounce = 50% power by default.
+    */
+    @keyframes doubleNudge {
+      0% {
+        transform: translateY(0);
+      }
+
+      /* First hit: 100% power */
+      8% {
+        transform: translateY(calc(var(--nudge-distance) * -1));
+      }
+
+      18% {
+        transform: translateY(calc(var(--nudge-distance) * 0.65));
+      }
+
+      28% {
+        transform: translateY(calc(var(--nudge-distance) * -0.32));
+      }
+
+      38% {
+        transform: translateY(calc(var(--nudge-distance) * 0.16));
+      }
+
+      46% {
+        transform: translateY(0);
+      }
+
+      /* Small rest before second hit */
+      54% {
+        transform: translateY(0);
+      }
+
+      /* Second hit: 50% power */
+      62% {
+        transform: translateY(calc(var(--nudge-distance) * var(--second-hit-power) * -1));
+      }
+
+      72% {
+        transform: translateY(calc(var(--nudge-distance) * var(--second-hit-power) * 0.65));
+      }
+
+      82% {
+        transform: translateY(calc(var(--nudge-distance) * var(--second-hit-power) * -0.32));
+      }
+
+      92% {
+        transform: translateY(calc(var(--nudge-distance) * var(--second-hit-power) * 0.16));
+      }
+
+      100% {
+        transform: translateY(0);
+      }
+    }
+
+    .banner {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 926 / 244;
+      background: var(--banner-bg);
+      border-top: 4px solid var(--banner-accent);
+      border-bottom: 4px solid var(--banner-accent);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 24px 42px;
+      isolation: isolate;
+    }
+
+    .banner::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255,255,255,0.06) 0%,
+          rgba(255,255,255,0) 18%,
+          rgba(255,255,255,0) 82%,
+          rgba(255,255,255,0.06) 100%
+        );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .banner-text {
+      position: relative;
+      z-index: 5;
+      color: var(--banner-text);
+      line-height: 1.08;
+      text-wrap: balance;
+      user-select: none;
+      text-shadow:
+        0 2px 0 rgba(0,0,0,0.45),
+        0 0 12px rgba(255,255,255,0.08);
+    }
+
+    .banner-title {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 58px);
+      font-weight: 900;
+      letter-spacing: -0.025em;
+    }
+
+    .banner-subtitle {
+      margin: 0;
+      font-size: clamp(20px, 3vw, 48px);
+      font-weight: 900;
+      letter-spacing: -0.025em;
+    }
+
+    .shine-layer {
+      position: absolute;
+      inset: -40% auto -40% -80%;
+      width: var(--shine-width);
+      transform: skewX(-22deg);
+      pointer-events: none;
+      opacity: 0;
+      z-index: 4;
+      mix-blend-mode: screen;
+    }
+
+    .shine-layer.active {
+      animation: premiumShine var(--shine-duration) cubic-bezier(.16,.8,.24,1) forwards;
+    }
+
+    .shine-layer.reverse {
+      inset: -40% -80% -40% auto;
+    }
+
+    .shine-layer.reverse.active {
+      animation: premiumShineReverse var(--shine-duration) cubic-bezier(.16,.8,.24,1) forwards;
+    }
+
+    .shine-layer::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(
+          90deg,
+          rgba(255,255,255,0) 0%,
+          rgba(255,220,90,0.00) 12%,
+          rgba(255,220,90,0.18) 26%,
+          rgba(255,255,255,0.78) 46%,
+          rgba(255,255,255,1.00) 50%,
+          rgba(255,255,255,0.70) 54%,
+          rgba(255,220,90,0.22) 72%,
+          rgba(255,255,255,0) 100%
+        );
+      filter: blur(0.6px);
+    }
+
+    .shine-layer::after {
+      content: "";
+      position: absolute;
+      top: 44%;
+      left: 35%;
+      width: 30%;
+      height: 12%;
+      border-radius: 999px;
+      background:
+        radial-gradient(
+          ellipse at center,
+          rgba(255,255,255,1) 0%,
+          rgba(255,240,160,0.75) 26%,
+          rgba(255,220,80,0.18) 58%,
+          rgba(255,255,255,0) 100%
+        );
+      filter: blur(3px);
+    }
+
+    @keyframes premiumShine {
+      0% {
+        opacity: 0;
+        transform: translateX(0) skewX(-22deg);
+      }
+
+      8% {
+        opacity: calc(var(--shine-opacity) * 0.55);
+      }
+
+      18% {
+        opacity: var(--shine-opacity);
+      }
+
+      72% {
+        opacity: calc(var(--shine-opacity) * 0.9);
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateX(520%) skewX(-22deg);
+      }
+    }
+
+    @keyframes premiumShineReverse {
+      0% {
+        opacity: 0;
+        transform: translateX(0) skewX(-22deg);
+      }
+
+      8% {
+        opacity: calc(var(--shine-opacity) * var(--reverse-shine-power) * 0.55);
+      }
+
+      18% {
+        opacity: calc(var(--shine-opacity) * var(--reverse-shine-power));
+      }
+
+      72% {
+        opacity: calc(var(--shine-opacity) * var(--reverse-shine-power) * 0.9);
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateX(-520%) skewX(-22deg);
+      }
+    }
+
+    .edge-glint {
+      position: absolute;
+      top: 0;
+      left: -30%;
+      width: 18%;
+      height: 4px;
+      background:
+        linear-gradient(
+          90deg,
+          rgba(255,255,255,0),
+          rgba(255,255,255,0.95),
+          rgba(255,230,90,0.95),
+          rgba(255,255,255,0)
+        );
+      filter: blur(1px);
+      opacity: 0;
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    .edge-glint.bottom {
+      top: auto;
+      bottom: 0;
+    }
+
+    .edge-glint.active {
+      animation: edgeGlint var(--shine-duration) cubic-bezier(.16,.8,.24,1) forwards;
+    }
+
+    .edge-glint.reverse {
+      left: auto;
+      right: -30%;
+    }
+
+    .edge-glint.reverse.active {
+      animation: edgeGlintReverse var(--shine-duration) cubic-bezier(.16,.8,.24,1) forwards;
+    }
+
+    @keyframes edgeGlint {
+      0% {
+        opacity: 0;
+        transform: translateX(0);
+      }
+
+      12% {
+        opacity: 0.9;
+      }
+
+      75% {
+        opacity: 0.75;
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateX(760%);
+      }
+    }
+
+    @keyframes edgeGlintReverse {
+      0% {
+        opacity: 0;
+        transform: translateX(0);
+      }
+
+      12% {
+        opacity: calc(0.9 * var(--reverse-shine-power));
+      }
+
+      75% {
+        opacity: calc(0.75 * var(--reverse-shine-power));
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateX(-760%);
+      }
+    }
+
+    .debug {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 16px;
+      position: sticky;
+      top: 24px;
+    }
+
+    .debug h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+
+    .debug p {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: #bcbcbc;
+      line-height: 1.45;
+    }
+
+    .debug-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .field .row {
+      display: grid;
+      grid-template-columns: 1fr 92px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #f1c400;
+      cursor: pointer;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      background: #0e0e0e;
+      color: white;
+      border: 1px solid #3a3a3a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 10px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: #f1c400;
+      color: #000;
+    }
+
+    .secondary {
+      background: #292929;
+      color: white;
+      border: 1px solid #3a3a3a;
+    }
+
+    .status {
+      margin-top: 14px;
+      padding: 12px;
+      background: #101010;
+      border: 1px solid #282828;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #d6d6d6;
+      line-height: 1.5;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #252525;
+      border: 1px solid #3a3a3a;
+      margin: 0 6px 6px 0;
+    }
+
+    @media (max-width: 1200px) {
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      .debug {
+        position: static;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <main class="stage">
+      <div class="banner-wrap" id="bannerWrap">
+        <div class="banner">
+          <div class="shine-layer" id="shine"></div>
+          <div class="edge-glint" id="topGlint"></div>
+          <div class="edge-glint bottom" id="bottomGlint"></div>
+
+          <div class="banner-text">
+            <div class="banner-title">Battle Pass Quests Ready!</div>
+            <div class="banner-subtitle">Keep progressing to claim rewards</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="debug">
+      <h2>Debug Controls</h2>
+      <p>
+        Flow: wait → play nudge → wait until nudge ends + delay → play shine → wait reverse delay → play reverse shine → repeat.
+        The values below are embedded as the default stats.
+      </p>
+
+      <div class="debug-grid">
+        <div class="field">
+          <label>Wait Before Anim (ms)</label>
+          <div class="row">
+            <input id="waitBeforeAnim" type="range" min="0" max="20000" step="100" value="5000">
+            <input id="waitBeforeAnimNumber" type="number" min="0" max="20000" step="100" value="5000">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Shine Delay After Nudge Ends (ms)</label>
+          <div class="row">
+            <input id="shineDelay" type="range" min="0" max="10000" step="100" value="3000">
+            <input id="shineDelayNumber" type="number" min="0" max="10000" step="100" value="500">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Reverse Shine Delay After Forward Ends (ms)</label>
+          <div class="row">
+            <input id="reverseShineDelay" type="range" min="0" max="3000" step="25" value="0">
+            <input id="reverseShineDelayNumber" type="number" min="0" max="3000" step="25" value="0">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Nudge Power (px)</label>
+          <div class="row">
+            <input id="nudgeDistance" type="range" min="4" max="44" step="1" value="22">
+            <input id="nudgeDistanceNumber" type="number" min="4" max="44" step="1" value="22">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Nudge Duration (ms)</label>
+          <div class="row">
+            <input id="nudgeDuration" type="range" min="300" max="1800" step="10" value="1050">
+            <input id="nudgeDurationNumber" type="number" min="300" max="1800" step="10" value="1050">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Second Nudge Power</label>
+          <div class="row">
+            <input id="secondHitPower" type="range" min="0.1" max="1" step="0.05" value="0.5">
+            <input id="secondHitPowerNumber" type="number" min="0.1" max="1" step="0.05" value="0.5">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Shine Duration (ms)</label>
+          <div class="row">
+            <input id="shineDuration" type="range" min="300" max="2500" step="10" value="950">
+            <input id="shineDurationNumber" type="number" min="300" max="2500" step="10" value="950">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Shine Opacity</label>
+          <div class="row">
+            <input id="shineOpacity" type="range" min="0.1" max="1" step="0.01" value="0.85">
+            <input id="shineOpacityNumber" type="number" min="0.1" max="1" step="0.01" value="0.85">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Shine Width (%)</label>
+          <div class="row">
+            <input id="shineWidth" type="range" min="12" max="80" step="1" value="46">
+            <input id="shineWidthNumber" type="number" min="12" max="80" step="1" value="46">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Reverse Shine Power</label>
+          <div class="row">
+            <input id="reverseShinePower" type="range" min="0.05" max="1" step="0.05" value="0.5">
+            <input id="reverseShinePowerNumber" type="number" min="0.05" max="1" step="0.05" value="0.5">
+          </div>
+        </div>
+
+        <div class="buttons">
+          <button class="primary" id="togglePlay">Pause</button>
+          <button class="secondary" id="restartCycle">Restart Flow</button>
+          <button class="secondary" id="triggerFull">Trigger Full Now</button>
+          <button class="secondary" id="triggerShine">Trigger Shine</button>
+        </div>
+
+        <div class="status" id="status"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+
+    const bannerWrap = document.getElementById('bannerWrap');
+    const shine = document.getElementById('shine');
+    const topGlint = document.getElementById('topGlint');
+    const bottomGlint = document.getElementById('bottomGlint');
+    const status = document.getElementById('status');
+
+    // Embedded default stats.
+    // Change these values directly if you want the file to open with different defaults.
+    const settings = {
+      waitBeforeAnim: 5000,
+      shineDelay: 500,
+      reverseShineDelay: 0,
+      nudgeDistance: 22,
+      nudgeDuration: 1050,
+      secondHitPower: 0.5,
+      shineDuration: 950,
+      shineOpacity: 0.85,
+      shineWidth: 46,
+      reverseShinePower: 0.5
+    };
+
+    let isPlaying = true;
+
+    let waitTimer = null;
+    let shineTimer = null;
+    let reverseShineTimer = null;
+    let loopTimer = null;
+
+    function byId(id) {
+      return document.getElementById(id);
+    }
+
+    function bindPair(name, callback) {
+      const range = byId(name);
+      const number = byId(name + 'Number');
+
+      function apply(value) {
+        range.value = value;
+        number.value = value;
+        callback(Number(value));
+      }
+
+      range.addEventListener('input', () => apply(range.value));
+      number.addEventListener('input', () => apply(number.value));
+    }
+
+    function applySettings() {
+      root.style.setProperty('--nudge-distance', settings.nudgeDistance + 'px');
+      root.style.setProperty('--nudge-duration', settings.nudgeDuration + 'ms');
+      root.style.setProperty('--second-hit-power', settings.secondHitPower);
+
+      root.style.setProperty('--shine-duration', settings.shineDuration + 'ms');
+      root.style.setProperty('--shine-opacity', settings.shineOpacity);
+      root.style.setProperty('--shine-width', settings.shineWidth + '%');
+      root.style.setProperty('--reverse-shine-power', settings.reverseShinePower);
+
+      updateStatus();
+    }
+
+    function updateStatus() {
+      status.innerHTML = `
+        <div class="pill"><strong>State:</strong> ${isPlaying ? 'Playing' : 'Paused'}</div>
+        <div class="pill"><strong>Wait:</strong> ${settings.waitBeforeAnim}ms</div>
+        <div class="pill"><strong>Nudge:</strong> ${settings.nudgeDuration}ms</div>
+        <div class="pill"><strong>After nudge:</strong> +${settings.shineDelay}ms</div>
+        <div class="pill"><strong>Shine:</strong> ${settings.shineDuration}ms</div>
+        <div class="pill"><strong>Reverse delay:</strong> ${settings.reverseShineDelay}ms</div>
+        <div class="pill"><strong>Second nudge:</strong> ${Math.round(settings.secondHitPower * 100)}%</div>
+        <div class="pill"><strong>Reverse shine:</strong> ${Math.round(settings.reverseShinePower * 100)}%</div>
+      `;
+    }
+
+    function clearTimers() {
+      clearTimeout(waitTimer);
+      clearTimeout(shineTimer);
+      clearTimeout(reverseShineTimer);
+      clearTimeout(loopTimer);
+
+      waitTimer = null;
+      shineTimer = null;
+      reverseShineTimer = null;
+      loopTimer = null;
+    }
+
+    function restartAnimation(el, className) {
+      el.classList.remove(className);
+      void el.offsetWidth;
+      el.classList.add(className);
+    }
+
+    function clearShineDirection() {
+      shine.classList.remove('reverse');
+      topGlint.classList.remove('reverse');
+      bottomGlint.classList.remove('reverse');
+    }
+
+    function setReverseShineDirection() {
+      shine.classList.add('reverse');
+      topGlint.classList.add('reverse');
+      bottomGlint.classList.add('reverse');
+    }
+
+    function playCurrentShineDirection() {
+      restartAnimation(shine, 'active');
+      restartAnimation(topGlint, 'active');
+      restartAnimation(bottomGlint, 'active');
+    }
+
+    function playNudgeOnly() {
+      restartAnimation(bannerWrap, 'nudge');
+    }
+
+    function playForwardShine() {
+      clearShineDirection();
+      playCurrentShineDirection();
+    }
+
+    function playReverseShine() {
+      setReverseShineDirection();
+      playCurrentShineDirection();
+    }
+
+    function playShinePackage() {
+      playForwardShine();
+
+      // Reverse shine starts after the forward shine ends + debug delay.
+      reverseShineTimer = setTimeout(() => {
+        if (!isPlaying) return;
+        playReverseShine();
+
+        // When reverse shine ends, start the flow again.
+        loopTimer = setTimeout(() => {
+          if (isPlaying) startFlow();
+        }, settings.shineDuration);
+      }, settings.shineDuration + settings.reverseShineDelay);
+    }
+
+    function playFullSequenceNow() {
+      clearTimers();
+
+      if (!isPlaying) return;
+
+      playNudgeOnly();
+
+      // Wait until nudge ends + configured delay, then play shine.
+      shineTimer = setTimeout(() => {
+        if (isPlaying) playShinePackage();
+      }, settings.nudgeDuration + settings.shineDelay);
+    }
+
+    function startFlow() {
+      clearTimers();
+
+      if (!isPlaying) return;
+
+      // Flow:
+      // Wait 5 seconds
+      // Play Anim
+      // Wait till animation ends + 3 seconds
+      // Play Shine
+      // Wait reverse shine delay
+      // Play Reverse Shine
+      waitTimer = setTimeout(() => {
+        if (isPlaying) playFullSequenceNow();
+      }, settings.waitBeforeAnim);
+    }
+
+    bindPair('waitBeforeAnim', value => {
+      settings.waitBeforeAnim = Math.max(0, value);
+      applySettings();
+      if (isPlaying) startFlow();
+    });
+
+    bindPair('shineDelay', value => {
+      settings.shineDelay = Math.max(0, value);
+      applySettings();
+      if (isPlaying) startFlow();
+    });
+
+    bindPair('reverseShineDelay', value => {
+      settings.reverseShineDelay = Math.max(0, value);
+      applySettings();
+      if (isPlaying) startFlow();
+    });
+
+    bindPair('nudgeDistance', value => {
+      settings.nudgeDistance = Math.max(4, value);
+      applySettings();
+    });
+
+    bindPair('nudgeDuration', value => {
+      settings.nudgeDuration = Math.max(300, value);
+      applySettings();
+      if (isPlaying) startFlow();
+    });
+
+    bindPair('secondHitPower', value => {
+      settings.secondHitPower = Math.min(1, Math.max(0.1, value));
+      applySettings();
+    });
+
+    bindPair('shineDuration', value => {
+      settings.shineDuration = Math.max(300, value);
+      applySettings();
+      if (isPlaying) startFlow();
+    });
+
+    bindPair('shineOpacity', value => {
+      settings.shineOpacity = Math.min(1, Math.max(0.1, value));
+      applySettings();
+    });
+
+    bindPair('shineWidth', value => {
+      settings.shineWidth = Math.min(80, Math.max(12, value));
+      applySettings();
+    });
+
+    bindPair('reverseShinePower', value => {
+      settings.reverseShinePower = Math.min(1, Math.max(0.05, value));
+      applySettings();
+    });
+
+    byId('togglePlay').addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      byId('togglePlay').textContent = isPlaying ? 'Pause' : 'Play';
+
+      if (isPlaying) {
+        startFlow();
+      } else {
+        clearTimers();
+      }
+
+      updateStatus();
+    });
+
+    byId('restartCycle').addEventListener('click', () => {
+      isPlaying = true;
+      byId('togglePlay').textContent = 'Pause';
+      startFlow();
+      updateStatus();
+    });
+
+    byId('triggerFull').addEventListener('click', () => {
+      isPlaying = true;
+      byId('togglePlay').textContent = 'Pause';
+      playFullSequenceNow();
+      updateStatus();
+    });
+
+    byId('triggerShine').addEventListener('click', () => {
+      clearTimers();
+      isPlaying = true;
+      byId('togglePlay').textContent = 'Pause';
+      playShinePackage();
+      updateStatus();
+    });
+
+    applySettings();
+    startFlow();
+  </script>
+</body>
+</html>
